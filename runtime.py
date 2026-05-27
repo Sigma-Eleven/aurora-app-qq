@@ -14,7 +14,7 @@ from nonebot.adapters.onebot.v11 import (
     MessageEvent,
 )
 
-from apps.qq.message_helper import MessageHelper
+from .message_helper import MessageHelper
 from src.platform.contracts import AppEvent
 from src.utils.log_utils import get_logger
 from src.utils.time_utils import now_text
