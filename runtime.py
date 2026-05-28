@@ -395,7 +395,7 @@ class QQApplication:
         text: str,
         gap: float = 0.3,
     ) -> None:
-        from apps.qq.message_helper import MessageHelper
+        from .message_helper import MessageHelper
 
         segments = MessageHelper.split_text(text)
         for i, seg in enumerate(segments):
