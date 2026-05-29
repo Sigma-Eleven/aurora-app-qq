@@ -16,13 +16,11 @@ from nonebot.adapters.onebot.v11 import (
 
 from .message_helper import MessageHelper
 from src.platform.contracts import AppEvent
-from src.utils.log_utils import get_logger
 from src.utils.time_utils import now_text
 
 if TYPE_CHECKING:
     from src.platform.application_api import PlatformAPI
 
-logger = get_logger("QQApplication")
 _message_handler = None
 _active_runtime: "QQApplication | None" = None
 
@@ -38,14 +36,15 @@ def _clear_active_runtime(app: "QQApplication") -> None:
         _active_runtime = None
 
 
-def _ensure_message_listener_registered() -> None:
+def _ensure_message_listener_registered(api: "PlatformAPI | None" = None) -> None:
     global _message_handler
     if _message_handler is not None:
         return
     try:
         _message_handler = on_message(priority=5, block=False)
     except Exception as exc:
-        logger.warning("QQ listener registration skipped: %s", exc)
+        if api is not None:
+            api.log("warning", f"QQ listener registration skipped: {exc}")
         return
 
     @_message_handler.handle()
@@ -214,18 +213,20 @@ class QQApplication:
         return Path(__file__).with_name("manifest.yaml")
 
     async def on_start(self) -> None:
+        api = self._require_api()
         if self._enable_listener:
-            _ensure_message_listener_registered()
+            _ensure_message_listener_registered(api)
         self._load_persistent_state()
         self._running = True
         _set_active_runtime(self)
-        logger.info("QQ application started")
+        api.log("info", "QQ application started")
 
     async def on_stop(self) -> None:
+        api = self._require_api()
         self._running = False
         _clear_active_runtime(self)
         self._save_persistent_state()
-        logger.info("QQ application stopped")
+        api.log("info", "QQ application stopped")
 
     async def on_tick(self) -> None:
         return None
@@ -233,7 +234,7 @@ class QQApplication:
     # ── 消息监听 ────────────────────────────────────
 
     def _register_message_listener(self) -> None:
-        _ensure_message_listener_registered()
+        _ensure_message_listener_registered(self._require_api())
 
     async def handle_message(self, bot: Bot, event: MessageEvent) -> None:
         if not self._running:
@@ -319,9 +320,10 @@ class QQApplication:
         session_id: str,
         text: str,
     ) -> dict[str, object]:
+        api = self._require_api()
         target = self._session_targets.get(str(session_id))
         if target is None:
-            logger.warning("session %s 缺少目标信息", session_id)
+            api.log("warning", f"session {session_id} 缺少目标信息")
             return {"success": False, "delivered_at": now_text()}
 
         if bool(target.get("is_group")):
@@ -439,7 +441,7 @@ class QQApplication:
             if bot_id:
                 return get_bot(bot_id)
         except Exception:
-            logger.warning("Bot %s 未找到", bot_id)
+            self._require_api().log("warning", f"Bot {bot_id} 未找到")
         try:
             bots = get_bots()
         except Exception:
